@@ -27,6 +27,7 @@ cmake_minimum_required(VERSION 3.5.0 FATAL_ERROR)
 option(IS_COMPILE_DEBUG "Compile the Integration Service project in debug mode." OFF)
 
 option(BUILD_LIBRARY "Compile the Integration Service" ON)
+option(IS_THIRDPARTY "Allow to download thidparty repository when needed." ON)
 
 if(DEFINED CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE_LOWERCASE "" CACHE STRING "Build type to lowercase")
@@ -56,7 +57,40 @@ endif()
 # External dependencies for the Integration Service Core library
 ###############################################################################
 if(BUILD_LIBRARY)
-  find_package(xtypes REQUIRED)
+
+  find_package(xtypes QUIET)
+  if(IS_THIRDPARTY AND NOT xtypes_FOUND)
+    message(STATUS "Updating submodules")
+    execute_process(
+      COMMAND git submodule update --init
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/../
+      RESULT_VARIABLE EXECUTE_RESULT
+    )
+
+    if(NOT EXECUTE_RESULT EQUAL 0)
+      message(ERROR "Cannot update git submodules")
+    else()
+      file(
+        COPY
+          ${PROJECT_SOURCE_DIR}/../thirdparty/xtypes/include/xtypes
+        DESTINATION
+          ${CMAKE_INSTALL_PREFIX}/include
+        FILES_MATCHING
+          PATTERN "*.hpp"
+      )
+      
+      file(
+        COPY
+          ${PROJECT_SOURCE_DIR}/../thirdparty/xtypes/thirdparty/cpp-peglib
+        DESTINATION
+          ${CMAKE_INSTALL_PREFIX}/include
+        FILES_MATCHING
+          PATTERN "*.hpp"
+      )
+    endif()
+  elseif(NOT IS_THIRDPARTY AND NOT xtypes_FOUND)
+      message(FATAL_ERROR "xtypes not found")
+  endif()
 
   find_package(yaml-cpp REQUIRED)
 
@@ -138,6 +172,8 @@ if(BUILD_LIBRARY)
     PUBLIC
       $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
       $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+      $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../thirdparty/xtypes/include>
+      $<BUILD_INTERFACE:${CMAKE_INSTALL_PREFIX}/../xtypes/thirdparty/cpp-peglib/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
       #$<INSTALL_INTERFACE:${xtypes_INCLUDE_DIR}>  #propagate the xtypes headers
   )
